@@ -1,18 +1,16 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
-  addEdge,
   useNodesState,
   useEdgesState,
   type Node,
   type Edge,
   type Connection,
-  type OnConnectEnd,
   BackgroundVariant,
   MarkerType,
 } from '@xyflow/react'
@@ -45,17 +43,22 @@ const EDGE_DASH: Record<EdgeKind, string | undefined> = {
   'closes':       '6,2',
 }
 
-function plannerNodesToFlow(nodes: ReturnType<typeof usePlannerStore.getState>['nodes']): Node[] {
-  return nodes.map((n, i) => ({
+function storeNodesToFlow(
+  storeNodes: ReturnType<typeof usePlannerStore.getState>['nodes'],
+  posMap: Map<string, { x: number; y: number }>,
+): Node[] {
+  return storeNodes.map((n, i) => ({
     id: n.id,
     type: n.kind,
-    position: { x: 100 + (i % 4) * 300, y: 100 + Math.floor(i / 4) * 220 },
+    position: posMap.get(n.id) ?? { x: 80 + (i % 4) * 290, y: 80 + Math.floor(i / 4) * 210 },
     data: n as unknown as Record<string, unknown>,
   }))
 }
 
-function plannerEdgesToFlow(edges: ReturnType<typeof usePlannerStore.getState>['edges']): Edge[] {
-  return edges.map((e) => {
+function storeEdgesToFlow(
+  storeEdges: ReturnType<typeof usePlannerStore.getState>['edges'],
+): Edge[] {
+  return storeEdges.map((e) => {
     const color = EDGE_COLORS[e.edgeKind]
     const dash = EDGE_DASH[e.edgeKind]
     return {
@@ -94,75 +97,80 @@ export function PlannerCanvas() {
   const deleteNode = usePlannerStore((s) => s.deleteNode)
   const setSelected = usePlannerStore((s) => s.setSelected)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(plannerNodesToFlow(storeNodes))
-  const [edges, setEdges, onEdgesChange] = useEdgesState(plannerEdgesToFlow(storeEdges))
+  // Position map is kept in a ref — React Flow owns drag positions,
+  // we snapshot them here so new nodes get sensible defaults and
+  // restored nodes (e.g. after undo) keep their position.
+  const posRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(
+    storeNodesToFlow(storeNodes, posRef.current),
+  )
+  const [edges, setEdges, onEdgesChange] = useEdgesState(
+    storeEdgesToFlow(storeEdges),
+  )
   const [edgeMenu, setEdgeMenu] = useState<EdgeMenuState | null>(null)
 
-  // Sync store → flow when store changes
-  const prevStoreNodes = useRef(storeNodes)
-  const prevStoreEdges = useRef(storeEdges)
-
-  if (storeNodes !== prevStoreNodes.current) {
-    prevStoreNodes.current = storeNodes
-    setNodes((fNodes) => {
-      const posMap = new Map(fNodes.map((n) => [n.id, n.position]))
-      return plannerNodesToFlow(storeNodes).map((n) => ({
-        ...n,
-        position: posMap.get(n.id) ?? n.position,
-      }))
+  // ── Sync store nodes → React Flow (in effect, not during render) ───────────
+  useEffect(() => {
+    setNodes((flowNodes) => {
+      // Snapshot current positions so moved nodes keep their position
+      for (const fn of flowNodes) posRef.current.set(fn.id, fn.position)
+      return storeNodesToFlow(storeNodes, posRef.current)
     })
-  }
+  }, [storeNodes, setNodes])
 
-  if (storeEdges !== prevStoreEdges.current) {
-    prevStoreEdges.current = storeEdges
-    setEdges(plannerEdgesToFlow(storeEdges))
-  }
+  // ── Sync store edges → React Flow ─────────────────────────────────────────
+  useEffect(() => {
+    setEdges(storeEdgesToFlow(storeEdges))
+  }, [storeEdges, setEdges])
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      // Show edge-kind picker menu
-      setEdgeMenu({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-        pendingConnection: connection,
+  // ── Keep posRef current as user drags nodes ────────────────────────────────
+  const handleNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChange>[0]) => {
+      onNodesChange(changes)
+      // Snapshot updated positions after a drag ends
+      setNodes((fns) => {
+        for (const fn of fns) posRef.current.set(fn.id, fn.position)
+        return fns
       })
     },
-    []
+    [onNodesChange, setNodes],
   )
+
+  const onConnect = useCallback((connection: Connection) => {
+    setEdgeMenu({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      pendingConnection: connection,
+    })
+  }, [])
 
   const handleEdgeKindSelect = useCallback(
     (kind: EdgeKind) => {
       if (!edgeMenu) return
-      const { pendingConnection: conn } = edgeMenu
       addStoreEdge({
-        source: conn.source!,
-        target: conn.target!,
+        source: edgeMenu.pendingConnection.source!,
+        target: edgeMenu.pendingConnection.target!,
         edgeKind: kind,
       })
       setEdgeMenu(null)
     },
-    [edgeMenu, addStoreEdge]
+    [edgeMenu, addStoreEdge],
   )
 
   const onEdgesDelete = useCallback(
-    (deleted: Edge[]) => {
-      for (const e of deleted) deleteStoreEdge(e.id)
-    },
-    [deleteStoreEdge]
+    (deleted: Edge[]) => { for (const e of deleted) deleteStoreEdge(e.id) },
+    [deleteStoreEdge],
   )
 
   const onNodesDelete = useCallback(
-    (deleted: Node[]) => {
-      for (const n of deleted) deleteNode(n.id)
-    },
-    [deleteNode]
+    (deleted: Node[]) => { for (const n of deleted) deleteNode(n.id) },
+    [deleteNode],
   )
 
   const onNodeClick = useCallback(
-    (_: unknown, node: Node) => {
-      setSelected(node.id)
-    },
-    [setSelected]
+    (_: unknown, node: Node) => setSelected(node.id),
+    [setSelected],
   )
 
   const onPaneClick = useCallback(() => {
@@ -175,7 +183,7 @@ export function PlannerCanvas() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
@@ -197,15 +205,12 @@ export function PlannerCanvas() {
           size={1.2}
           color="rgba(0,212,255,0.1)"
         />
-        <Controls
-          showInteractive={false}
-          style={{ left: 12, bottom: 12 }}
-        />
+        <Controls showInteractive={false} style={{ left: 12, bottom: 12 }} />
         <MiniMap
           style={{ right: 12, bottom: 12, width: 140, height: 90 }}
           nodeColor={(n) => {
             const kind = (n.data as { kind: NodeKind }).kind
-            if (kind === 'pr') return 'rgba(255,45,120,0.6)'
+            if (kind === 'pr')      return 'rgba(255,45,120,0.6)'
             if (kind === 'project') return 'rgba(0,255,157,0.5)'
             if (kind === 'subissue') return 'rgba(0,212,255,0.3)'
             return 'rgba(0,212,255,0.55)'
