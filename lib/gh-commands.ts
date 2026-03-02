@@ -261,7 +261,7 @@ function buildIssueCommand(
 
   const parts = [`gh issue create`, repoFlag]
   parts.push(`--title ${q(node.title)}`)
-  if (bodyLines.length) parts.push(`--body ${q(bodyLines.join('\n').trim())}`)
+  if (bodyLines.length) parts.push(`--body ${qWithVars(bodyLines.join('\n').trim())}`)
   if (node.labels?.length) {
     for (const l of node.labels) parts.push(`--label ${q(l.trim())}`)
   }
@@ -304,7 +304,7 @@ function buildPRCommand(
 
   const parts = [`gh pr create`, repoFlag]
   parts.push(`--title ${q(node.title)}`)
-  if (bodyLines.length) parts.push(`--body ${q(bodyLines.join('\n').trim())}`)
+  if (bodyLines.length) parts.push(`--body ${qWithVars(bodyLines.join('\n').trim())}`)
   parts.push(`--base ${node.baseBranch || 'main'}`)
   if (node.headBranch) parts.push(`--head ${node.headBranch}`)
   if (node.draft) parts.push('--draft')
@@ -324,7 +324,26 @@ function buildPRCommand(
   return cmd
 }
 
-/** Shell-safe single-quote wrapping */
+/** Shell-safe single-quote wrapping (for strings with no variable references) */
 function q(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`
+}
+
+/**
+ * Shell-safe quoting that preserves $VARNAME expansion.
+ * Uses adjacent-string technique: 'literal '$VAR' more'
+ * so variable references expand while literal text is safely quoted.
+ */
+function qWithVars(s: string): string {
+  // Split on shell variable patterns ($UPPER_SNAKE_CASE)
+  const parts = s.split(/(\$[A-Z][A-Z0-9_]*)/g)
+  if (parts.length === 1) return q(s)
+  return parts
+    .map((part, i) => {
+      if (i % 2 === 1) return part // variable reference — leave bare
+      if (!part) return ''
+      return `'${part.replace(/'/g, "'\\''")}'` // literal — single-quote it
+    })
+    .filter(Boolean)
+    .join('')
 }
