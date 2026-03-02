@@ -1,26 +1,302 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
+/* ── Blade Runner Design Tokens ─────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --br-bg:         #040812;
+  --br-surface:    #080f1e;
+  --br-surface-hi: #0c1a35;
+  --br-surface-2:  #101f42;
+  --br-cyan:       #00d4ff;
+  --br-cyan-dim:   #0091b0;
+  --br-pink:       #ff2d78;
+  --br-pink-dim:   #a01d4c;
+  --br-amber:      #f77f00;
+  --br-amber-dim:  #9a5000;
+  --br-green:      #00ff9d;
+  --br-green-dim:  #00a064;
+  --br-purple:     #bf5fff;
+  --br-text:       #e0f2fe;
+  --br-muted:      #5a8fa8;
+  --br-border:     rgba(0, 212, 255, 0.18);
+  --br-border-hi:  rgba(0, 212, 255, 0.45);
+  --br-glow-cyan:  0 0 8px rgba(0, 212, 255, 0.5), 0 0 20px rgba(0, 212, 255, 0.15);
+  --br-glow-pink:  0 0 8px rgba(255, 45, 120, 0.5), 0 0 20px rgba(255, 45, 120, 0.15);
+  --br-glow-green: 0 0 8px rgba(0, 255, 157, 0.5), 0 0 20px rgba(0, 255, 157, 0.15);
+  --br-glow-amber: 0 0 8px rgba(247, 127, 0, 0.5), 0 0 20px rgba(247, 127, 0, 0.15);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--br-bg);
+  --color-foreground: var(--br-text);
+  --color-surface: var(--br-surface);
+  --color-surface-hi: var(--br-surface-hi);
+  --color-br-cyan: var(--br-cyan);
+  --color-br-pink: var(--br-pink);
+  --color-br-amber: var(--br-amber);
+  --color-br-green: var(--br-green);
+  --color-br-purple: var(--br-purple);
+  --color-br-muted: var(--br-muted);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #__next {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--br-bg);
+  color: var(--br-text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Scrollbar ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--br-surface); }
+::-webkit-scrollbar-thumb { background: var(--br-cyan-dim); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--br-cyan); }
+
+/* ── React Flow overrides ────────────────────────────────── */
+.react-flow__background { background-color: var(--br-bg) !important; }
+.react-flow__background pattern circle { fill: rgba(0, 212, 255, 0.1) !important; }
+
+.react-flow__edge-path {
+  stroke-width: 1.5;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--br-amber) !important;
+  filter: drop-shadow(0 0 4px var(--br-amber));
+}
+.react-flow__controls {
+  background: var(--br-surface) !important;
+  border: 1px solid var(--br-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: var(--br-glow-cyan) !important;
+}
+.react-flow__controls-button {
+  background: var(--br-surface) !important;
+  border-bottom: 1px solid var(--br-border) !important;
+  color: var(--br-cyan) !important;
+  fill: var(--br-cyan) !important;
+}
+.react-flow__controls-button:hover { background: var(--br-surface-hi) !important; }
+.react-flow__minimap {
+  background: var(--br-surface) !important;
+  border: 1px solid var(--br-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.react-flow__minimap-mask { fill: rgba(0, 212, 255, 0.08) !important; }
+.react-flow__handle {
+  background: var(--br-surface-hi) !important;
+  border: 2px solid var(--br-cyan-dim) !important;
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 50% !important;
+  transition: all 0.15s !important;
+}
+.react-flow__handle:hover,
+.react-flow__handle-connecting {
+  background: var(--br-cyan) !important;
+  border-color: var(--br-cyan) !important;
+  box-shadow: var(--br-glow-cyan) !important;
+}
+
+/* ── Reusable utility classes ───────────────────────────── */
+.br-glow-cyan  { box-shadow: var(--br-glow-cyan); }
+.br-glow-pink  { box-shadow: var(--br-glow-pink); }
+.br-glow-green { box-shadow: var(--br-glow-green); }
+.br-glow-amber { box-shadow: var(--br-glow-amber); }
+
+.br-panel {
+  background: var(--br-surface);
+  border: 1px solid var(--br-border);
+  border-radius: 8px;
+}
+
+.br-input {
+  background: var(--br-surface-hi);
+  border: 1px solid var(--br-border);
+  border-radius: 6px;
+  color: var(--br-text);
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.br-input:focus {
+  border-color: var(--br-cyan);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+}
+.br-input::placeholder { color: var(--br-muted); }
+.br-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.br-textarea {
+  background: var(--br-surface-hi);
+  border: 1px solid var(--br-border);
+  border-radius: 6px;
+  color: var(--br-text);
+  padding: 8px 10px;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.br-textarea:focus {
+  border-color: var(--br-cyan);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+}
+.br-textarea::placeholder { color: var(--br-muted); }
+
+.br-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--br-muted);
+  margin-bottom: 4px;
+}
+
+.br-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.br-btn-cyan {
+  background: rgba(0, 212, 255, 0.1);
+  color: var(--br-cyan);
+  border: 1px solid var(--br-border);
+}
+.br-btn-cyan:hover {
+  background: rgba(0, 212, 255, 0.2);
+  border-color: var(--br-cyan);
+  box-shadow: var(--br-glow-cyan);
+}
+.br-btn-pink {
+  background: rgba(255, 45, 120, 0.1);
+  color: var(--br-pink);
+  border: 1px solid rgba(255, 45, 120, 0.25);
+}
+.br-btn-pink:hover {
+  background: rgba(255, 45, 120, 0.2);
+  border-color: var(--br-pink);
+  box-shadow: var(--br-glow-pink);
+}
+.br-btn-green {
+  background: rgba(0, 255, 157, 0.08);
+  color: var(--br-green);
+  border: 1px solid rgba(0, 255, 157, 0.2);
+}
+.br-btn-green:hover {
+  background: rgba(0, 255, 157, 0.18);
+  border-color: var(--br-green);
+  box-shadow: var(--br-glow-green);
+}
+.br-btn-amber {
+  background: rgba(247, 127, 0, 0.12);
+  color: var(--br-amber);
+  border: 1px solid rgba(247, 127, 0, 0.28);
+}
+.br-btn-amber:hover {
+  background: rgba(247, 127, 0, 0.22);
+  border-color: var(--br-amber);
+  box-shadow: var(--br-glow-amber);
+}
+.br-btn-ghost {
+  background: transparent;
+  color: var(--br-muted);
+  border: 1px solid transparent;
+}
+.br-btn-ghost:hover {
+  background: var(--br-surface-hi);
+  color: var(--br-text);
+  border-color: var(--br-border);
+}
+.br-btn-danger {
+  background: rgba(255, 45, 78, 0.1);
+  color: #ff2d4e;
+  border: 1px solid rgba(255, 45, 78, 0.25);
+}
+.br-btn-danger:hover {
+  background: rgba(255, 45, 78, 0.2);
+  border-color: #ff2d4e;
+  box-shadow: 0 0 8px rgba(255, 45, 78, 0.4);
+}
+.br-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.br-btn:disabled:hover { box-shadow: none; }
+
+/* ── Divider ─────────────────────────────────────────────── */
+.br-divider {
+  height: 1px;
+  background: var(--br-border);
+  margin: 12px 0;
+}
+
+/* ── Animated glow pulse ─────────────────────────────────── */
+@keyframes br-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+.br-pulse { animation: br-pulse 2.5s ease-in-out infinite; }
+
+@keyframes br-flicker {
+  0%, 95%, 100% { opacity: 1; }
+  96%           { opacity: 0.7; }
+  97%           { opacity: 1; }
+  98%           { opacity: 0.6; }
+  99%           { opacity: 1; }
+}
+.br-flicker { animation: br-flicker 8s ease-in-out infinite; }
+
+/* ── Modal backdrop ─────────────────────────────────────── */
+.br-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 18, 0.85);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Code block ──────────────────────────────────────────── */
+.br-code {
+  background: #020509;
+  border: 1px solid var(--br-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--br-cyan);
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ── Select overrides ────────────────────────────────────── */
+select.br-input option {
+  background: var(--br-surface-hi);
+  color: var(--br-text);
 }

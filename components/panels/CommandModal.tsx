@@ -1,0 +1,198 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { X, Copy, Check, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
+import { usePlannerStore } from '@/lib/store'
+import { generateCommands } from '@/lib/gh-commands'
+import type { GeneratedCommand } from '@/lib/gh-commands'
+
+interface Props {
+  onClose: () => void
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    })
+  }, [text])
+
+  return (
+    <button
+      className={`br-btn ${copied ? 'br-btn-green' : 'br-btn-ghost'}`}
+      style={{ padding: '3px 8px', fontSize: 11 }}
+      onClick={copy}
+      title="Copy"
+    >
+      {copied ? <Check size={11} /> : <Copy size={11} />}
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
+
+function CommandBlock({ cmd }: { cmd: GeneratedCommand }) {
+  if (!cmd.command) {
+    // It's a note
+    return (
+      <div style={{
+        background: 'rgba(247,127,0,0.07)',
+        border: '1px solid rgba(247,127,0,0.2)',
+        borderRadius: 6,
+        padding: '8px 12px',
+        fontSize: 11,
+        color: 'var(--br-amber)',
+        fontFamily: 'var(--font-mono, monospace)',
+        whiteSpace: 'pre-wrap',
+        lineHeight: 1.6,
+      }}>
+        # {cmd.comment}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 4,
+        gap: 8,
+      }}>
+        <span style={{ fontSize: 11, color: 'var(--br-muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          # {cmd.comment}
+        </span>
+        <CopyButton text={cmd.command} />
+      </div>
+      <div className="br-code">
+        {cmd.command}
+      </div>
+    </div>
+  )
+}
+
+export function CommandModal({ onClose }: Props) {
+  const nodes = usePlannerStore((s) => s.nodes)
+  const edges = usePlannerStore((s) => s.edges)
+  const repoConfig = usePlannerStore((s) => s.repoConfig)
+
+  const commands = generateCommands(nodes, edges, repoConfig)
+
+  const fullScript = commands
+    .filter((c) => c.command)
+    .map((c) => `# ${c.comment}\n${c.command}`)
+    .join('\n\n')
+
+  return (
+    <div className="br-backdrop" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--br-surface)',
+          border: '1px solid var(--br-border)',
+          borderRadius: 12,
+          width: '90vw',
+          maxWidth: 720,
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: 'var(--br-glow-cyan), 0 24px 64px rgba(0,0,0,0.8)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 20px',
+          borderBottom: '1px solid var(--br-border)',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Terminal size={16} style={{ color: 'var(--br-cyan)' }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--br-text)' }}>
+                Generated gh Commands
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--br-muted)', marginTop: 1 }}>
+                {commands.filter((c) => c.command).length} commands for{' '}
+                {repoConfig.owner && repoConfig.repo
+                  ? `${repoConfig.owner}/${repoConfig.repo}`
+                  : 'your repository'}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {fullScript && <CopyButton text={fullScript} />}
+            <button
+              className="br-btn br-btn-ghost"
+              style={{ padding: '5px 9px' }}
+              onClick={onClose}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div style={{
+          display: 'flex',
+          gap: 14,
+          padding: '10px 20px',
+          borderBottom: '1px solid var(--br-border)',
+          flexShrink: 0,
+          flexWrap: 'wrap',
+        }}>
+          {[
+            { color: '#00d4ff', label: 'Issues' },
+            { color: '#ff2d78', label: 'PRs' },
+            { color: '#00ff9d', label: 'Projects' },
+            { color: '#f77f00', label: 'Notes' },
+          ].map((item) => (
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--br-muted)' }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
+              {item.label}
+            </div>
+          ))}
+          <div style={{ fontSize: 11, color: 'var(--br-muted)', marginLeft: 'auto' }}>
+            Run commands in order top → bottom
+          </div>
+        </div>
+
+        {/* Commands list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {commands.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              color: 'var(--br-muted)',
+              padding: '40px 20px',
+              fontSize: 13,
+            }}>
+              <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.3 }}>◈</div>
+              No nodes in your plan yet.<br />
+              Add issues, PRs, or projects using the toolbar.
+            </div>
+          ) : (
+            commands.map((cmd) => <CommandBlock key={cmd.id} cmd={cmd} />)
+          )}
+        </div>
+
+        {/* Copy all footer */}
+        {fullScript && (
+          <div style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--br-border)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            flexShrink: 0,
+          }}>
+            <CopyButton text={fullScript} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
