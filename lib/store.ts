@@ -138,8 +138,10 @@ export const usePlannerStore = create<PlannerStore>()(
 
       setSelected: (id) => set({ selectedNodeId: id }),
 
-      reset: () =>
-        set({ nodes: [], edges: [], selectedNodeId: null }),
+      reset: () => {
+        _idCounter = 1
+        set({ nodes: [], edges: [], selectedNodeId: null })
+      },
     }),
     {
       name: 'r-gh-planner',
