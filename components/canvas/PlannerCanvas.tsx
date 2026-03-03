@@ -94,6 +94,7 @@ export function PlannerCanvas() {
   const storeEdges = usePlannerStore((s) => s.edges)
   const addStoreEdge = usePlannerStore((s) => s.addEdge)
   const deleteStoreEdge = usePlannerStore((s) => s.deleteEdge)
+  const updateNode = usePlannerStore((s) => s.updateNode)
   const deleteNode = usePlannerStore((s) => s.deleteNode)
   const setSelected = usePlannerStore((s) => s.setSelected)
 
@@ -148,19 +149,42 @@ export function PlannerCanvas() {
   const handleEdgeKindSelect = useCallback(
     (kind: EdgeKind) => {
       if (!edgeMenu) return
-      addStoreEdge({
-        source: edgeMenu.pendingConnection.source!,
-        target: edgeMenu.pendingConnection.target!,
-        edgeKind: kind,
-      })
+      const src = edgeMenu.pendingConnection.source!
+      const tgt = edgeMenu.pendingConnection.target!
+      addStoreEdge({ source: src, target: tgt, edgeKind: kind })
+      // Keep node fields in sync with drawn edges
+      if (kind === 'parent-child') {
+        updateNode(tgt, { parentId: src })
+      } else if (kind === 'closes') {
+        const pr = storeNodes.find((n) => n.id === src)
+        if (pr) {
+          const current = pr.linkedIssueIds ?? []
+          if (!current.includes(tgt)) updateNode(src, { linkedIssueIds: [...current, tgt] })
+        }
+      }
       setEdgeMenu(null)
     },
-    [edgeMenu, addStoreEdge],
+    [edgeMenu, addStoreEdge, updateNode, storeNodes],
   )
 
   const onEdgesDelete = useCallback(
-    (deleted: Edge[]) => { for (const e of deleted) deleteStoreEdge(e.id) },
-    [deleteStoreEdge],
+    (deleted: Edge[]) => {
+      for (const e of deleted) {
+        deleteStoreEdge(e.id)
+        const edgeKind = (e.data as { edgeKind?: EdgeKind })?.edgeKind
+        if (edgeKind === 'parent-child') {
+          updateNode(e.target, { parentId: undefined })
+        } else if (edgeKind === 'closes') {
+          const pr = storeNodes.find((n) => n.id === e.source)
+          if (pr) {
+            updateNode(e.source, {
+              linkedIssueIds: (pr.linkedIssueIds ?? []).filter((id) => id !== e.target),
+            })
+          }
+        }
+      }
+    },
+    [deleteStoreEdge, updateNode, storeNodes],
   )
 
   const onNodesDelete = useCallback(

@@ -23,8 +23,11 @@ function Field({
 export function PropertiesPanel() {
   const selectedId = usePlannerStore((s) => s.selectedNodeId)
   const nodes = usePlannerStore((s) => s.nodes)
+  const edges = usePlannerStore((s) => s.edges)
   const updateNode = usePlannerStore((s) => s.updateNode)
   const deleteNode = usePlannerStore((s) => s.deleteNode)
+  const addEdge = usePlannerStore((s) => s.addEdge)
+  const deleteEdge = usePlannerStore((s) => s.deleteEdge)
   const setSelected = usePlannerStore((s) => s.setSelected)
 
   const node = nodes.find((n) => n.id === selectedId)
@@ -186,7 +189,16 @@ export function PropertiesPanel() {
                 <select
                   className="br-input"
                   value={node.parentId ?? ''}
-                  onChange={(e) => update({ parentId: e.target.value || undefined })}
+                  onChange={(e) => {
+                    const newParentId = e.target.value || undefined
+                    update({ parentId: newParentId })
+                    // Remove any existing parent-child edge for this subissue
+                    const existing = edges.find(
+                      (edge) => edge.target === node.id && edge.edgeKind === 'parent-child',
+                    )
+                    if (existing) deleteEdge(existing.id)
+                    if (newParentId) addEdge({ source: newParentId, target: node.id, edgeKind: 'parent-child' })
+                  }}
                   style={{ appearance: 'none', cursor: 'pointer' }}
                 >
                   <option value="">— None —</option>
@@ -290,6 +302,18 @@ export function PropertiesPanel() {
                                 ? [...current, issue.id]
                                 : current.filter((id) => id !== issue.id),
                             })
+                            // Sync closes edge
+                            const existing = edges.find(
+                              (edge) =>
+                                edge.source === node.id &&
+                                edge.target === issue.id &&
+                                edge.edgeKind === 'closes',
+                            )
+                            if (e.target.checked && !existing) {
+                              addEdge({ source: node.id, target: issue.id, edgeKind: 'closes' })
+                            } else if (!e.target.checked && existing) {
+                              deleteEdge(existing.id)
+                            }
                           }}
                           style={{ accentColor: 'var(--br-green)', width: 13, height: 13 }}
                         />
