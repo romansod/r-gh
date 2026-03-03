@@ -66,14 +66,39 @@ export const usePlannerStore = create<PlannerStore>()(
         set((s) => ({
           nodes: s.nodes
             .filter((n) => n.id !== id)
-            .map((n) => (n.parentId === id ? { ...n, parentId: undefined } : n)),
+            .map((n) => {
+              if (n.parentId === id) return { ...n, parentId: undefined }
+              if (n.linkedIssueIds?.includes(id)) {
+                return { ...n, linkedIssueIds: n.linkedIssueIds.filter((i) => i !== id) }
+              }
+              return n
+            }),
           edges: s.edges.filter((e) => e.source !== id && e.target !== id),
           selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
         })),
 
       addEdge: (edge) => {
         const id = `edge-${_idCounter++}`
-        set((s) => ({ edges: [...s.edges, { ...edge, id }] }))
+        set((s) => {
+          // Sync node fields atomically with the edge creation
+          let nodes = s.nodes
+          if (edge.edgeKind === 'parent-child') {
+            nodes = nodes.map((n) =>
+              n.id === edge.target ? { ...n, parentId: edge.source } : n,
+            )
+          } else if (edge.edgeKind === 'closes') {
+            nodes = nodes.map((n) => {
+              if (n.id === edge.source && n.kind === 'pr') {
+                const current = n.linkedIssueIds ?? []
+                if (!current.includes(edge.target)) {
+                  return { ...n, linkedIssueIds: [...current, edge.target] }
+                }
+              }
+              return n
+            })
+          }
+          return { edges: [...s.edges, { ...edge, id }], nodes }
+        })
       },
 
       updateEdge: (id, patch) =>
@@ -82,7 +107,24 @@ export const usePlannerStore = create<PlannerStore>()(
         })),
 
       deleteEdge: (id) =>
-        set((s) => ({ edges: s.edges.filter((e) => e.id !== id) })),
+        set((s) => {
+          const edge = s.edges.find((e) => e.id === id)
+          // Sync node fields atomically with the edge deletion
+          let nodes = s.nodes
+          if (edge?.edgeKind === 'parent-child') {
+            nodes = nodes.map((n) =>
+              n.id === edge.target ? { ...n, parentId: undefined } : n,
+            )
+          } else if (edge?.edgeKind === 'closes') {
+            nodes = nodes.map((n) => {
+              if (n.id === edge.source && n.kind === 'pr') {
+                return { ...n, linkedIssueIds: (n.linkedIssueIds ?? []).filter((i) => i !== edge.target) }
+              }
+              return n
+            })
+          }
+          return { edges: s.edges.filter((e) => e.id !== id), nodes }
+        }),
 
       setSelected: (id) => set({ selectedNodeId: id }),
 
