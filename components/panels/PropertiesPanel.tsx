@@ -25,6 +25,8 @@ export function PropertiesPanel() {
   const nodes = usePlannerStore((s) => s.nodes)
   const updateNode = usePlannerStore((s) => s.updateNode)
   const deleteNode = usePlannerStore((s) => s.deleteNode)
+  const addEdge = usePlannerStore((s) => s.addEdge)
+  const deleteEdge = usePlannerStore((s) => s.deleteEdge)
   const setSelected = usePlannerStore((s) => s.setSelected)
 
   const node = nodes.find((n) => n.id === selectedId)
@@ -186,7 +188,18 @@ export function PropertiesPanel() {
                 <select
                   className="br-input"
                   value={node.parentId ?? ''}
-                  onChange={(e) => update({ parentId: e.target.value || undefined })}
+                  onChange={(e) => {
+                    const newParentId = e.target.value || undefined
+                    // Read live state to avoid stale closure
+                    const existing = usePlannerStore.getState().edges.find(
+                      (edge) => edge.target === node.id && edge.edgeKind === 'parent-child',
+                    )
+                    // deleteEdge / addEdge sync parentId atomically in the store
+                    if (existing) deleteEdge(existing.id)
+                    if (newParentId) addEdge({ source: newParentId, target: node.id, edgeKind: 'parent-child' })
+                    // If clearing with no replacement, directly patch parentId
+                    if (!newParentId) update({ parentId: undefined })
+                  }}
                   style={{ appearance: 'none', cursor: 'pointer' }}
                 >
                   <option value="">— None —</option>
@@ -284,12 +297,23 @@ export function PropertiesPanel() {
                           type="checkbox"
                           checked={checked}
                           onChange={(e) => {
-                            const current = node.linkedIssueIds ?? []
-                            update({
-                              linkedIssueIds: e.target.checked
-                                ? [...current, issue.id]
-                                : current.filter((id) => id !== issue.id),
-                            })
+                            const isChecked = e.target.checked
+                            // Read live state to avoid stale closure
+                            const existing = usePlannerStore.getState().edges.find(
+                              (edge) =>
+                                edge.source === node.id &&
+                                edge.target === issue.id &&
+                                edge.edgeKind === 'closes',
+                            )
+                            // addEdge / deleteEdge sync linkedIssueIds atomically in the store
+                            if (isChecked && !existing) {
+                              addEdge({ source: node.id, target: issue.id, edgeKind: 'closes' })
+                            } else if (!isChecked && existing) {
+                              deleteEdge(existing.id)
+                            } else if (!isChecked && !existing) {
+                              // Fallback: stale data (e.g. old localStorage) — patch directly
+                              update({ linkedIssueIds: (node.linkedIssueIds ?? []).filter((i) => i !== issue.id) })
+                            }
                           }}
                           style={{ accentColor: 'var(--br-green)', width: 13, height: 13 }}
                         />

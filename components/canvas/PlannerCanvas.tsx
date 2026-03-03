@@ -148,17 +148,18 @@ export function PlannerCanvas() {
   const handleEdgeKindSelect = useCallback(
     (kind: EdgeKind) => {
       if (!edgeMenu) return
-      addStoreEdge({
-        source: edgeMenu.pendingConnection.source!,
-        target: edgeMenu.pendingConnection.target!,
-        edgeKind: kind,
-      })
+      const src = edgeMenu.pendingConnection.source
+      const tgt = edgeMenu.pendingConnection.target
+      if (!src || !tgt) return
+      // addStoreEdge syncs parentId / linkedIssueIds atomically in the store
+      addStoreEdge({ source: src, target: tgt, edgeKind: kind })
       setEdgeMenu(null)
     },
     [edgeMenu, addStoreEdge],
   )
 
   const onEdgesDelete = useCallback(
+    // deleteStoreEdge syncs parentId / linkedIssueIds atomically in the store
     (deleted: Edge[]) => { for (const e of deleted) deleteStoreEdge(e.id) },
     [deleteStoreEdge],
   )
