@@ -125,12 +125,16 @@ export function PropertiesPanel() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px' }}>
 
         {/* Title */}
-        <Field label="Title *">
+        <Field
+          label="Title *"
+          error={!node.title.trim() ? 'Required' : undefined}
+        >
           <input
             className="br-input"
             value={node.title}
             onChange={(e) => update({ title: e.target.value })}
             placeholder="Short descriptive title"
+            style={!node.title.trim() ? { borderColor: 'var(--br-pink)', boxShadow: '0 0 0 1px var(--br-pink)' } : undefined}
           />
         </Field>
 

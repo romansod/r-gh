@@ -5,18 +5,7 @@ import { X, Copy, Check, Terminal, AlertTriangle } from 'lucide-react'
 import { usePlannerStore } from '@/lib/store'
 import { generateCommands } from '@/lib/gh-commands'
 import type { GeneratedCommand } from '@/lib/gh-commands'
-import type { PlannerNode } from '@/lib/types'
-
-function getValidationErrors(nodes: PlannerNode[]): string[] {
-  const errors: string[] = []
-  for (const n of nodes) {
-    if (!n.title.trim()) errors.push(`${n.kind} ${n.id} is missing a title`)
-    if (n.kind === 'pr' && !n.headBranch?.trim()) {
-      errors.push(`PR "${n.title || n.id}" is missing a head branch (required for --head)`)
-    }
-  }
-  return errors
-}
+import { getValidationErrors } from '@/lib/validation'
 
 interface Props {
   onClose: () => void
@@ -200,8 +189,8 @@ export function CommandModal({ onClose }: Props) {
               <AlertTriangle size={12} />
               {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''} found — commands may fail
             </div>
-            {validationErrors.map((err, i) => (
-              <div key={i} style={{ fontSize: 11, color: 'var(--br-amber)', paddingLeft: 18, opacity: 0.85 }}>
+            {validationErrors.map((err) => (
+              <div key={err} style={{ fontSize: 11, color: 'var(--br-amber)', paddingLeft: 18, opacity: 0.85 }}>
                 • {err}
               </div>
             ))}
