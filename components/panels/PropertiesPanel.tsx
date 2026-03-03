@@ -7,15 +7,22 @@ import type { PlannerNode } from '@/lib/types'
 
 function Field({
   label,
+  error,
   children,
 }: {
   label: string
+  error?: string
   children: React.ReactNode
 }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <label className="br-label">{label}</label>
       {children}
+      {error && (
+        <div style={{ fontSize: 10, color: 'var(--br-pink)', marginTop: 4, fontWeight: 600 }}>
+          {error}
+        </div>
+      )}
     </div>
   )
 }
@@ -217,12 +224,16 @@ export function PropertiesPanel() {
         {/* PR specific */}
         {node.kind === 'pr' && (
           <>
-            <Field label="Head Branch (your feature branch)">
+            <Field
+              label="Head Branch (your feature branch) *"
+              error={!node.headBranch?.trim() ? 'Required — needed for gh pr create --head' : undefined}
+            >
               <input
                 className="br-input"
                 value={node.headBranch ?? ''}
                 onChange={(e) => update({ headBranch: e.target.value })}
                 placeholder="feature/my-feature"
+                style={!node.headBranch?.trim() ? { borderColor: 'var(--br-pink)', boxShadow: '0 0 0 1px var(--br-pink)' } : undefined}
               />
             </Field>
 

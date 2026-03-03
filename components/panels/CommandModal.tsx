@@ -1,10 +1,22 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { X, Copy, Check, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, Copy, Check, Terminal, AlertTriangle } from 'lucide-react'
 import { usePlannerStore } from '@/lib/store'
 import { generateCommands } from '@/lib/gh-commands'
 import type { GeneratedCommand } from '@/lib/gh-commands'
+import type { PlannerNode } from '@/lib/types'
+
+function getValidationErrors(nodes: PlannerNode[]): string[] {
+  const errors: string[] = []
+  for (const n of nodes) {
+    if (!n.title.trim()) errors.push(`${n.kind} ${n.id} is missing a title`)
+    if (n.kind === 'pr' && !n.headBranch?.trim()) {
+      errors.push(`PR "${n.title || n.id}" is missing a head branch (required for --head)`)
+    }
+  }
+  return errors
+}
 
 interface Props {
   onClose: () => void
@@ -79,6 +91,7 @@ export function CommandModal({ onClose }: Props) {
   const repoConfig = usePlannerStore((s) => s.repoConfig)
 
   const commands = generateCommands(nodes, edges, repoConfig)
+  const validationErrors = getValidationErrors(nodes)
 
   const scriptHeader = [
     '#!/bin/bash',
@@ -171,6 +184,29 @@ export function CommandModal({ onClose }: Props) {
             Run commands in order top → bottom
           </div>
         </div>
+
+        {/* Validation warnings */}
+        {validationErrors.length > 0 && (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            padding: '10px 20px',
+            borderBottom: '1px solid rgba(247,127,0,0.3)',
+            background: 'rgba(247,127,0,0.06)',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: 'var(--br-amber)' }}>
+              <AlertTriangle size={12} />
+              {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''} found — commands may fail
+            </div>
+            {validationErrors.map((err, i) => (
+              <div key={i} style={{ fontSize: 11, color: 'var(--br-amber)', paddingLeft: 18, opacity: 0.85 }}>
+                • {err}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Commands list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
