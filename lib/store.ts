@@ -42,18 +42,24 @@ export const usePlannerStore = create<PlannerStore>()(
 
       addNode: (kind) => {
         const id = nextId(kind)
+        const kindLabel: Record<NodeKind, string> = {
+          project: 'Project', pr: 'PR', subissue: 'Sub-issue', issue: 'Issue',
+        }
         const defaults: Partial<PlannerNode> = kind === 'pr'
           ? { baseBranch: 'main', headBranch: '', draft: false, linkedIssueIds: [] }
           : kind === 'project'
           ? {}
           : { labels: [], assignees: [] }
-        const node: PlannerNode = {
-          id,
-          kind,
-          title: kind === 'project' ? 'New Project' : kind === 'pr' ? 'New PR' : 'New Issue',
-          ...defaults,
-        }
-        set((s) => ({ nodes: [...s.nodes, node], selectedNodeId: id }))
+        set((s) => {
+          const count = s.nodes.filter((n) => n.kind === kind).length + 1
+          const node: PlannerNode = {
+            id,
+            kind,
+            title: `New ${kindLabel[kind]} ${count}`,
+            ...defaults,
+          }
+          return { nodes: [...s.nodes, node], selectedNodeId: id }
+        })
         return id
       },
 
