@@ -9,6 +9,13 @@ function nextId(kind: NodeKind) {
   return `${kind}-${_idCounter++}`
 }
 
+const KIND_LABEL: Record<NodeKind, string> = {
+  project:  'Project',
+  pr:       'PR',
+  subissue: 'Sub-issue',
+  issue:    'Issue',
+}
+
 interface PlannerStore {
   repoConfig: RepoConfig
   nodes: PlannerNode[]
@@ -42,9 +49,6 @@ export const usePlannerStore = create<PlannerStore>()(
 
       addNode: (kind) => {
         const id = nextId(kind)
-        const kindLabel: Record<NodeKind, string> = {
-          project: 'Project', pr: 'PR', subissue: 'Sub-issue', issue: 'Issue',
-        }
         const defaults: Partial<PlannerNode> = kind === 'pr'
           ? { baseBranch: 'main', headBranch: '', draft: false, linkedIssueIds: [] }
           : kind === 'project'
@@ -55,7 +59,7 @@ export const usePlannerStore = create<PlannerStore>()(
           const node: PlannerNode = {
             id,
             kind,
-            title: `New ${kindLabel[kind]} ${count}`,
+            title: `New ${KIND_LABEL[kind]} ${count}`,
             ...defaults,
           }
           return { nodes: [...s.nodes, node], selectedNodeId: id }
