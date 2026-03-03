@@ -89,9 +89,13 @@ export function generateCommands(
     for (const id of items) needsCapture.add(id)
   }
 
-  // Sub-issue parents
+  // Sub-issue parents (only capture if parent is an issue/subissue — not a PR)
+  const nodeKindById = new Map(nodes.map((n) => [n.id, n.kind]))
   for (const n of nodes) {
-    if (n.kind === 'subissue' && n.parentId) needsCapture.add(n.parentId)
+    if (n.kind === 'subissue' && n.parentId) {
+      const pk = nodeKindById.get(n.parentId)
+      if (pk === 'issue' || pk === 'subissue') needsCapture.add(n.parentId)
+    }
   }
 
   // Sub-issues themselves (needed for the link command)
@@ -143,7 +147,10 @@ export function generateCommands(
 
   // ── 3. Sub-issues ─────────────────────────────────────────────────────────
   for (const sub of nodes.filter((n) => n.kind === 'subissue')) {
-    const parentRef = sub.parentId ? varRef(sub.parentId) : undefined
+    const parentKind = sub.parentId ? nodeKindById.get(sub.parentId) : undefined
+    const parentRef = (parentKind === 'issue' || parentKind === 'subissue')
+      ? varRef(sub.parentId!)
+      : undefined
     commands.push({
       id: `cmd-${sub.id}-create`,
       nodeId: sub.id,
@@ -157,20 +164,23 @@ export function generateCommands(
       ),
     })
 
-    // Sub-issue link: use gh api (most reliable across gh CLI versions)
+    // Sub-issue link: only valid when parent is an issue/subissue, not a PR
     if (sub.parentId) {
-      const pRef = varRef(sub.parentId)
-      const cRef = varRef(sub.id)
-      commands.push({
-        id: `cmd-${sub.id}-link`,
-        nodeId: sub.id,
-        comment: `Link "${sub.title}" as sub-issue of parent`,
-        command: [
-          `gh api repos/${repoSlug}/issues/${pRef}/sub_issues`,
-          `--method POST`,
-          `--field sub_issue_id=${cRef}`,
-        ].join(' \\\n  '),
-      })
+      const parentKind = nodeKindById.get(sub.parentId)
+      if (parentKind === 'issue' || parentKind === 'subissue') {
+        const pRef = varRef(sub.parentId)
+        const cRef = varRef(sub.id)
+        commands.push({
+          id: `cmd-${sub.id}-link`,
+          nodeId: sub.id,
+          comment: `Link "${sub.title}" as sub-issue of parent`,
+          command: [
+            `gh api repos/${repoSlug}/issues/${pRef}/sub_issues`,
+            `--method POST`,
+            `--field sub_issue_id=${cRef}`,
+          ].join(' \\\n  '),
+        })
+      }
     }
   }
 
