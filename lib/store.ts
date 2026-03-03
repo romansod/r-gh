@@ -93,9 +93,14 @@ export const usePlannerStore = create<PlannerStore>()(
           // Sync node fields atomically with the edge creation
           let nodes = s.nodes
           if (edge.edgeKind === 'parent-child') {
-            nodes = nodes.map((n) =>
-              n.id === edge.target ? { ...n, parentId: edge.source } : n,
-            )
+            // Only set parentId when source is an issue or sub-issue; PRs/projects cannot
+            // be parents of sub-issues in GitHub's model
+            const sourceKind = s.nodes.find((n) => n.id === edge.source)?.kind
+            if (sourceKind === 'issue' || sourceKind === 'subissue') {
+              nodes = nodes.map((n) =>
+                n.id === edge.target ? { ...n, parentId: edge.source } : n,
+              )
+            }
           } else if (edge.edgeKind === 'closes') {
             nodes = nodes.map((n) => {
               if (n.id === edge.source && n.kind === 'pr') {
@@ -122,9 +127,12 @@ export const usePlannerStore = create<PlannerStore>()(
           // Sync node fields atomically with the edge deletion
           let nodes = s.nodes
           if (edge?.edgeKind === 'parent-child') {
-            nodes = nodes.map((n) =>
-              n.id === edge.target ? { ...n, parentId: undefined } : n,
-            )
+            const sourceKind = s.nodes.find((n) => n.id === edge.source)?.kind
+            if (sourceKind === 'issue' || sourceKind === 'subissue') {
+              nodes = nodes.map((n) =>
+                n.id === edge.target ? { ...n, parentId: undefined } : n,
+              )
+            }
           } else if (edge?.edgeKind === 'closes') {
             nodes = nodes.map((n) => {
               if (n.id === edge.source && n.kind === 'pr') {
@@ -139,7 +147,10 @@ export const usePlannerStore = create<PlannerStore>()(
       setSelected: (id) => set({ selectedNodeId: id }),
 
       reset: () =>
-        set({ nodes: [], edges: [], selectedNodeId: null }),
+        set(() => {
+          _idCounter = 1
+          return { nodes: [], edges: [], selectedNodeId: null }
+        }),
     }),
     {
       name: 'r-gh-planner',

@@ -89,9 +89,13 @@ export function generateCommands(
     for (const id of items) needsCapture.add(id)
   }
 
-  // Sub-issue parents
+  // Sub-issue parents (only capture if parent is an issue/subissue — not a PR)
+  const nodeKindById = new Map(nodes.map((n) => [n.id, n.kind]))
   for (const n of nodes) {
-    if (n.kind === 'subissue' && n.parentId) needsCapture.add(n.parentId)
+    if (n.kind === 'subissue' && n.parentId) {
+      const pk = nodeKindById.get(n.parentId)
+      if (pk === 'issue' || pk === 'subissue') needsCapture.add(n.parentId)
+    }
   }
 
   // Sub-issues themselves (needed for the link command)
@@ -143,7 +147,10 @@ export function generateCommands(
 
   // ── 3. Sub-issues ─────────────────────────────────────────────────────────
   for (const sub of nodes.filter((n) => n.kind === 'subissue')) {
-    const parentRef = sub.parentId ? varRef(sub.parentId) : undefined
+    const parentKind = sub.parentId ? nodeKindById.get(sub.parentId) : undefined
+    const parentRef = (parentKind === 'issue' || parentKind === 'subissue')
+      ? varRef(sub.parentId!)
+      : undefined
     commands.push({
       id: `cmd-${sub.id}-create`,
       nodeId: sub.id,
@@ -157,8 +164,9 @@ export function generateCommands(
       ),
     })
 
-    // Sub-issue link: use gh api (most reliable across gh CLI versions)
-    if (sub.parentId) {
+    // Sub-issue link: only valid when parent is an issue/subissue, not a PR.
+    // parentKind is already computed above — reuse it rather than re-looking up.
+    if (sub.parentId && (parentKind === 'issue' || parentKind === 'subissue')) {
       const pRef = varRef(sub.parentId)
       const cRef = varRef(sub.id)
       commands.push({
@@ -174,8 +182,8 @@ export function generateCommands(
     }
   }
 
-  // ── 4. Pull Requests ──────────────────────────────────────────────────────
-  for (const pr of nodes.filter((n) => n.kind === 'pr')) {
+  // ── 4. Pull Requests (topologically sorted so deps are created first) ───────
+  for (const pr of topologicalSortPRs(nodes.filter((n) => n.kind === 'pr'), blockedBySources, dependsOnTargets)) {
     // Merge closes from node properties + canvas edges, deduplicated
     const closesAll = [
       ...(pr.linkedIssueIds ?? []),
@@ -222,6 +230,70 @@ export function generateCommands(
   }
 
   return commands
+}
+
+// ── Topological sort for PRs ──────────────────────────────────────────────────
+// PRs that are depended-on or blocking others must be created first so their
+// shell variable ($PR_X_NUM) is assigned before it appears in another PR's body.
+function topologicalSortPRs(
+  prs: PlannerNode[],
+  blockedBySources: Map<string, string[]>,
+  dependsOnTargets: Map<string, string[]>,
+): PlannerNode[] {
+  if (prs.length === 0) return prs
+  const prIds = new Set(prs.map((p) => p.id))
+  const prById = new Map(prs.map((p) => [p.id, p]))
+
+  // prereqs[id] = PR ids that must be created BEFORE id
+  const prereqs = new Map<string, Set<string>>()
+  for (const pr of prs) prereqs.set(pr.id, new Set())
+
+  for (const pr of prs) {
+    // A blocks pr  →  A must come before pr (pr's body has $A_NUM)
+    for (const src of blockedBySources.get(pr.id) ?? []) {
+      if (prIds.has(src)) prereqs.get(pr.id)!.add(src)
+    }
+    // pr depends-on tgt  →  tgt must come before pr (pr's body has $tgt_NUM)
+    for (const tgt of dependsOnTargets.get(pr.id) ?? []) {
+      if (prIds.has(tgt)) prereqs.get(pr.id)!.add(tgt)
+    }
+  }
+
+  // Build successor list for Kahn's algorithm
+  const successors = new Map<string, string[]>()
+  for (const pr of prs) successors.set(pr.id, [])
+  for (const pr of prs) {
+    for (const pre of prereqs.get(pr.id)!) {
+      successors.get(pre)!.push(pr.id)
+    }
+  }
+
+  const inDegree = new Map(prs.map((p) => [p.id, prereqs.get(p.id)!.size]))
+  const queue = prs.filter((p) => inDegree.get(p.id) === 0)
+  const result: PlannerNode[] = []
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!
+    result.push(cur)
+    for (const next of successors.get(cur.id)!) {
+      const deg = inDegree.get(next)! - 1
+      inDegree.set(next, deg)
+      if (deg === 0) queue.push(prById.get(next)!)
+    }
+  }
+
+  // Append any remaining nodes (only if there's a cycle — shouldn't happen in practice,
+  // but a user can construct PR A blocks PR B blocks PR A on the canvas).
+  // The script will still be emitted but $VAR references may be undefined at runtime.
+  const resultIds = new Set(result.map((p) => p.id))
+  for (const pr of prs) {
+    if (!resultIds.has(pr.id)) {
+      console.warn(`[topologicalSortPRs] cycle detected; appending ${pr.id} without ordering guarantee`)
+      result.push(pr)
+    }
+  }
+
+  return result
 }
 
 // ── Command builders ──────────────────────────────────────────────────────────
